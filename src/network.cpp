@@ -1,5 +1,9 @@
 #include "network.h"
 #include "random.h"
+#include <iostream>   
+
+
+
 
 void Network::resize(const size_t &n, double inhib) {
     size_t old = size();
@@ -28,6 +32,73 @@ void Network::set_types_params(const std::vector<std::string> &_types,
         neurons[start+k].set_type(_types[k]);
         neurons[start+k].set_params(_par[k]);
     }
+}
+
+std::pair<size_t, double> Network::degree(const size_t &n) const {
+	size_t degree(0);
+	double valence(0.0);
+	for(auto& i:links) {
+		if(i.first.first == n or i.first.second == n) {
+			++ degree;
+			valence += i.second;
+		}
+	}
+	return std::make_pair(degree, valence);
+}
+
+
+std::vector<std::pair<size_t, double>> Network::neighbors(const size_t &n) const {
+	std::vector<std::pair<size_t, double>> tableau;
+	std::map<std::pair<size_t, size_t>, double>::const_iterator it;
+	it = links.lower_bound ({n, 0});
+	
+	while (it != links.end() and std::get<0>(it->first)==n) {  
+		tableau.push_back (std::make_pair(std::get<1>(it->first), it->second));
+		++it;
+	}
+	return tableau;
+}
+
+std::set<size_t> Network::step(const std::vector<double> &input_thalamic) {
+	std::set<size_t> firing_index;
+	std::vector<bool> is_on_fire;
+	double intensity_positive (0);
+	double intensity_negatif (0);
+	double intensity(0);
+	
+
+	for (size_t i=0; i<neurons.size(); i++) {
+		if (neurons[i].firing()) {
+			is_on_fire.push_back(true);
+			neurons[i].reset();
+		}else{
+			is_on_fire.push_back(false);
+		}
+		
+		std::vector<std::pair<size_t, double>>vec_(neighbors(i));
+		for (auto& y:vec_) {
+			
+			size_t index = std::get<0>(y);
+			if (neurons[index].is_inhibitory() and is_on_fire[index]) {
+				intensity_positive += intensity_positive;
+			} else if (!neurons[index].is_inhibitory() and is_on_fire[index]){
+				intensity_negatif += intensity_negatif;
+			}
+		}
+		
+		if (neurons[i].is_inhibitory()) {
+			intensity += 0.4 * input_thalamic[i] + 0.5 * intensity_positive - intensity_negatif;
+		} else { 
+			intensity += 1 * input_thalamic[i] + 0.5 * intensity_positive - intensity_negatif;
+		}
+		
+		neurons[i].input(intensity);
+		neurons[i].step();
+		intensity = 0;
+		
+	}
+	
+	return firing_index;
 }
 
 void Network::set_values(const std::vector<double> &_poten, const size_t start) {
